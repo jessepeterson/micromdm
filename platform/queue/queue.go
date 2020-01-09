@@ -4,7 +4,6 @@ package queue
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/boltdb/bolt"
 	"github.com/go-kit/kit/log"
@@ -80,32 +79,9 @@ func (db *Store) nextCommand(ctx context.Context, resp mdm.Response) (*Command, 
 		}
 		dc.NotNow = append(dc.NotNow, *x)
 
-	case "Acknowledged":
-		// move to completed, send next
-		x, a := cut(dc.Commands, resp.CommandUUID)
-		dc.Commands = a
-		if x == nil {
-			break
-		}
-		x.Acknowledged = time.Now().UTC()
-		dc.Completed = append(dc.Completed, *x)
-	case "Error":
-		// move to failed, send next
-		x, a := cut(dc.Commands, resp.CommandUUID)
-		dc.Commands = a
-		if x == nil { // must've already bin ackd
-			break
-		}
-		dc.Failed = append(dc.Failed, *x)
-
-	case "CommandFormatError":
-		// move to failed
-		x, a := cut(dc.Commands, resp.CommandUUID)
-		dc.Commands = a
-		if x == nil {
-			break
-		}
-		dc.Failed = append(dc.Failed, *x)
+	case "Acknowledged", "Error", "CommandFormatError":
+		// send next
+		_, dc.Commands = cut(dc.Commands, resp.CommandUUID)
 
 	case "Idle":
 

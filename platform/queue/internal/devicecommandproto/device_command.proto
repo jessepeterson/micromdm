@@ -19,7 +19,5 @@ message Command {
 message DeviceCommand {
     string device_udid = 1;
     repeated Command commands = 2;
-    repeated Command completed = 3;
-    repeated Command failed = 4;
     repeated Command not_now = 5;
 }

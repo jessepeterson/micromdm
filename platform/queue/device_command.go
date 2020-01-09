@@ -26,11 +26,7 @@ type Command struct {
 type DeviceCommand struct {
 	DeviceUDID string
 	Commands   []Command
-
-	// These are going to scale great. We'll have to see.
-	Completed []Command
-	Failed    []Command
-	NotNow    []Command
+	NotNow     []Command
 }
 
 func MarshalDeviceCommand(c *DeviceCommand) ([]byte, error) {
@@ -41,36 +37,6 @@ func MarshalDeviceCommand(c *DeviceCommand) ([]byte, error) {
 	// TODO add helper here to reduce copy/pasted boilerplate.
 	for _, command := range c.Commands {
 		protoc.Commands = append(protoc.Commands, &devicecommandproto.Command{
-			Uuid:         command.UUID,
-			Payload:      command.Payload,
-			CreatedAt:    command.CreatedAt.UnixNano(),
-			LastSentAt:   command.LastSentAt.UnixNano(),
-			Acknowledged: command.Acknowledged.UnixNano(),
-
-			TimesSent: int64(command.TimesSent),
-
-			LastStatus:     command.LastStatus,
-			FailureMessage: command.FailureMessage,
-		})
-	}
-
-	for _, command := range c.Completed {
-		protoc.Completed = append(protoc.Completed, &devicecommandproto.Command{
-			Uuid:         command.UUID,
-			Payload:      command.Payload,
-			CreatedAt:    command.CreatedAt.UnixNano(),
-			LastSentAt:   command.LastSentAt.UnixNano(),
-			Acknowledged: command.Acknowledged.UnixNano(),
-
-			TimesSent: int64(command.TimesSent),
-
-			LastStatus:     command.LastStatus,
-			FailureMessage: command.FailureMessage,
-		})
-	}
-
-	for _, command := range c.Failed {
-		protoc.Failed = append(protoc.Failed, &devicecommandproto.Command{
 			Uuid:         command.UUID,
 			Payload:      command.Payload,
 			CreatedAt:    command.CreatedAt.UnixNano(),
@@ -108,41 +74,9 @@ func UnmarshalDeviceCommand(data []byte, c *DeviceCommand) error {
 	}
 	c.DeviceUDID = pb.GetDeviceUdid()
 	protoCommands := pb.GetCommands()
-	protoCommandsCompleted := pb.GetCompleted()
-	protoCommandsFailed := pb.GetFailed()
 	protoCommandsNotNow := pb.GetNotNow()
 	for _, command := range protoCommands {
 		c.Commands = append(c.Commands, Command{
-			UUID:         command.GetUuid(),
-			Payload:      command.GetPayload(),
-			CreatedAt:    time.Unix(0, command.GetCreatedAt()).UTC(),
-			LastSentAt:   time.Unix(0, command.GetLastSentAt()).UTC(),
-			Acknowledged: time.Unix(0, command.GetAcknowledged()).UTC(),
-
-			TimesSent: int(command.TimesSent),
-
-			LastStatus:     command.LastStatus,
-			FailureMessage: command.FailureMessage,
-		})
-	}
-
-	for _, command := range protoCommandsCompleted {
-		c.Completed = append(c.Completed, Command{
-			UUID:         command.GetUuid(),
-			Payload:      command.GetPayload(),
-			CreatedAt:    time.Unix(0, command.GetCreatedAt()).UTC(),
-			LastSentAt:   time.Unix(0, command.GetLastSentAt()).UTC(),
-			Acknowledged: time.Unix(0, command.GetAcknowledged()).UTC(),
-
-			TimesSent: int(command.TimesSent),
-
-			LastStatus:     command.LastStatus,
-			FailureMessage: command.FailureMessage,
-		})
-	}
-
-	for _, command := range protoCommandsFailed {
-		c.Failed = append(c.Failed, Command{
 			UUID:         command.GetUuid(),
 			Payload:      command.GetPayload(),
 			CreatedAt:    time.Unix(0, command.GetCreatedAt()).UTC(),
