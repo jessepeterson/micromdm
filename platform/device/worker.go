@@ -18,6 +18,7 @@ type DeviceWorkerStore interface {
 	Save(ctx context.Context, d *Device) error
 	DeviceByUDID(ctx context.Context, udid string) (*Device, error)
 	DeviceBySerial(ctx context.Context, serial string) (*Device, error)
+	UpdateLastSeen(context.Context, string) error
 }
 
 type Worker struct {
@@ -144,16 +145,7 @@ func (w *Worker) updateFromAcknowledge(ctx context.Context, message []byte) erro
 	if ev.Response.EnrollmentID != nil {
 		return nil
 	}
-
-	dev, err := w.db.DeviceByUDID(ctx, ev.Response.UDID)
-	if err != nil {
-		return errors.Wrapf(err, "retrieve device with udid %s", ev.Response.UDID)
-	}
-	dev.LastSeen = time.Now()
-
-	err = w.db.Save(ctx, dev)
-	return errors.Wrapf(err, "saving updated device for acknowledge event")
-
+	return w.db.UpdateLastSeen(ctx, ev.Response.UDID)
 }
 
 func (w *Worker) updateFromCheckout(ctx context.Context, message []byte) error {
