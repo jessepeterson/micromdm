@@ -43,6 +43,7 @@ type Server struct {
 	Depsim                 string
 	PubClient              pubsub.PublishSubscriber
 	DB                     *bolt.DB
+	LastSeenDB             *bolt.DB
 	ServerPublicURL        string
 	SCEPChallenge          string
 	SCEPClientValidity     int
@@ -174,7 +175,7 @@ func (c *Server) setupCommandQueue(logger log.Logger) error {
 	if err != nil {
 		return err
 	}
-	devDB, err := devicebuiltin.NewDB(c.DB)
+	devDB, err := devicebuiltin.NewDB(c.DB, c.LastSeenDB)
 	if err != nil {
 		return errors.Wrap(err, "new device db")
 	}
@@ -203,6 +204,12 @@ func (c *Server) setupBolt() error {
 		return errors.Wrap(err, "opening boltdb")
 	}
 	c.DB = db
+	dbPath = filepath.Join(c.ConfigPath, "lastseen.db")
+	db, err = bolt.Open(dbPath, 0644, &bolt.Options{Timeout: time.Second})
+	if err != nil {
+		return errors.Wrap(err, "opening lastseen boltdb")
+	}
+	c.LastSeenDB = db
 
 	return nil
 }

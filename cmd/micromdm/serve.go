@@ -168,7 +168,7 @@ func serve(args []string) error {
 		removeService = block.LoggingMiddleware(logger)(svc)
 	}
 
-	devDB, err := devicebuiltin.NewDB(sm.DB)
+	devDB, err := devicebuiltin.NewDB(sm.DB, sm.LastSeenDB)
 	if err != nil {
 		stdlog.Fatal(err)
 	}

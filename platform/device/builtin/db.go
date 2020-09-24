@@ -30,9 +30,10 @@ const (
 
 type DB struct {
 	*bolt.DB
+	lastSeenDB *bolt.DB
 }
 
-func NewDB(db *bolt.DB) (*DB, error) {
+func NewDB(db, lastdb *bolt.DB) (*DB, error) {
 	err := db.Update(func(tx *bolt.Tx) error {
 		_, err := tx.CreateBucketIfNotExists([]byte(deviceIndexBucket))
 		if err != nil {
@@ -43,16 +44,19 @@ func NewDB(db *bolt.DB) (*DB, error) {
 			return err
 		}
 		_, err = tx.CreateBucketIfNotExists([]byte(udidCertAuthBucket))
-		if err != nil {
-			return err
-		}
-		_, err = tx.CreateBucketIfNotExists([]byte(deviceLastSeenBucket))
 		return err
 	})
 	if err != nil {
 		return nil, errors.Wrapf(err, "creating %s bucket", DeviceBucket)
 	}
-	datastore := &DB{DB: db}
+	err = lastdb.Update(func(tx *bolt.Tx) error {
+		_, err = tx.CreateBucketIfNotExists([]byte(deviceLastSeenBucket))
+		return err
+	})
+	if err != nil {
+		return nil, errors.Wrapf(err, "creating %s bucket", deviceLastSeenBucket)
+	}
+	datastore := &DB{DB: db, lastSeenDB: lastdb}
 	return datastore, nil
 }
 
@@ -83,7 +87,7 @@ func (db *DB) List(ctx context.Context, opt device.ListDevicesOption) ([]device.
 		return devices, errors.Wrapf(err, "getting list of devices")
 	}
 	// back-fill LastSeen status from its bucket
-	err = db.View(func(tx *bolt.Tx) error {
+	err = db.lastSeenDB.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(deviceLastSeenBucket))
 		return b.ForEach(func(k, v []byte) error {
 			for i := range devices {
@@ -115,7 +119,7 @@ func encodeTime(t time.Time) []byte {
 
 // UpdateLastSeen writes the current time for a UDID into the last seen bucket
 func (db *DB) UpdateLastSeen(ctx context.Context, udid string) error {
-	err := db.Update(func(tx *bolt.Tx) error {
+	err := db.lastSeenDB.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(deviceLastSeenBucket))
 		err := b.Put([]byte(udid), encodeTime(time.Now()))
 		return err
@@ -196,12 +200,16 @@ func (db *DB) deleteByIndex(key string) error {
 		return errors.Wrapf(err, "delete device index for serial %s", device.SerialNumber)
 	}
 
-	lsBucket := tx.Bucket([]byte(deviceLastSeenBucket))
-	if err := lsBucket.Delete([]byte(device.UDID)); err != nil {
-		return errors.Wrapf(err, "delete device LastSeen for UDID %s", device.UDID)
+	if err := tx.Commit(); err != nil {
+		return errors.Wrapf(err, "commiting device deleteion")
 	}
 
-	return tx.Commit()
+	err = db.lastSeenDB.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(deviceLastSeenBucket))
+		err := b.Delete([]byte(device.UDID))
+		return err
+	})
+	return errors.Wrapf(err, "delete LastSeen for UDID %s", device.UDID)
 }
 
 type notFound struct {
@@ -244,7 +252,7 @@ func (db *DB) deviceByIndex(key string) (*device.Device, error) {
 		return nil, err
 	}
 	// lookup LastSeen status from its bucket
-	err = db.View(func(tx *bolt.Tx) error {
+	err = db.lastSeenDB.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(deviceLastSeenBucket))
 		v := b.Get([]byte(dev.UDID))
 		if v != nil {
